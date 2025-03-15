@@ -2,59 +2,61 @@ package main
 
 import (
 	"fmt"
-	"myapp/utils"
+	"strings"
 	"sync"
+	"time"
 )
 
-/*
--> Read log messages from multiple sources
-*/
-func worker(logs <-chan string, error_logs chan<- string, wg *sync.WaitGroup) {
+// Log structure
+var logMessages = []string{
+	"INFO: Service started",
+	"ERROR: Database connection failed",
+	"INFO: Request handled",
+	"ERROR: Disk space low",
+	"INFO: User logged in",
+	"ERROR: API request timeout",
+}
+
+// Worker function that processes logs and filters out error messages
+func worker(id int, logs <-chan string, results chan<- string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for log := range logs {
-		if utils.IsErrorLog(log) {
-			error_logs <- log
+		fmt.Printf("Worker %d processing log: %s\n", id, log)
+		if strings.Contains(log, "ERROR") {
+			results <- log // Send only error logs to results channel
 		}
-	}
-}
-func logGenerator(logs chan<- string, wg *sync.WaitGroup, numOfLogs int) {
-	defer wg.Done()
-	for i := 0; i < numOfLogs; i++ {
-		log := utils.GenerateLog()
-		logs <- log
+		time.Sleep(time.Millisecond * 500) // Simulate processing time
 	}
 }
 
 func main() {
-	numOfLogs := 20
-	logs := make(chan string, 20)
-	error_logs := make(chan string, numOfLogs)
-
+	logChannel := make(chan string, len(logMessages)) // Buffered channel for logs
+	results := make(chan string, len(logMessages))    // Channel for filtered error logs
 	var wg sync.WaitGroup
 
-	// Start log generator
-	wg.Add(1)
-	go logGenerator(logs, &wg, numOfLogs)
-
-	// Start worker to process logs
-	wg.Add(1)
-	go worker(logs, error_logs, &wg)
-
-	// Wait for log generation to finish and close logs channel
-	go func() {
-		wg.Wait()
-		close(logs)
-	}()
-
-	// Close error_logs channel after worker is done processing
-	go func() {
-		wg.Wait()
-		close(error_logs)
-	}()
-
-	// Print error logs
-	for errLog := range error_logs {
-		fmt.Println("Retrieved:", errLog)
+	// Start worker pool (3 workers)
+	numWorkers := 3
+	for i := 1; i <= numWorkers; i++ {
+		wg.Add(1)
+		go worker(i, logChannel, results, &wg)
 	}
 
+	// Send logs to logChannel
+	go func() {
+		for _, log := range logMessages {
+			logChannel <- log
+		}
+		close(logChannel) // Close channel after sending all logs
+	}()
+
+	// Wait for workers to finish and then close results channel
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Read results (error logs)
+	for res := range results {
+		fmt.Println("Filtered Error Log:", res)
+	}
 }
