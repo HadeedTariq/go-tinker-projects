@@ -24,7 +24,7 @@ func worker(id int, images <-chan string, results chan<- string, wg *sync.WaitGr
 func main() {
 	numOfImages := 10
 	numOfWorkers := 3
-// 
+	//
 	images := make(chan string, numOfImages)
 	results := make(chan string, numOfImages)
 
