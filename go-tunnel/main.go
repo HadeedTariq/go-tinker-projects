@@ -21,6 +21,7 @@ func main() {
 }
 
 // Tunnel Server: Handles connections from tunnel clients
+
 func startTunnelServer(addr string) {
 	listener, err := net.Listen("tcp", addr)
 
@@ -28,37 +29,32 @@ func startTunnelServer(addr string) {
 		fmt.Println("Error starting tunnel server:", err)
 		return
 	}
-
 	defer listener.Close()
+
 	fmt.Println("Tunnel Server listening on", addr)
 
 	for {
 		conn, err := listener.Accept()
-
 		if err != nil {
 			fmt.Println("Error accepting tunnel client:", err)
 			continue
 		}
-		buff := make([]byte, 256)
 
-		n, err := conn.Read(buff)
-
+		buf := make([]byte, 256)
+		n, err := conn.Read(buf)
 		if err != nil {
 			fmt.Println("Error reading from client:", err)
 			conn.Close()
 			continue
 		}
 
-		clientId := string(buff[:n])
-
+		clientID := string(buf[:n])
 		clientsLock.Lock()
-		clients[clientId] = conn
+		clients[clientID] = conn // Store client
 		clientsLock.Unlock()
 
-		fmt.Println("New tunnel client registered:", clientId)
-
+		fmt.Println("New tunnel client registered:", clientID)
 	}
-
 }
 
 // Public Server: Handles external requests and forwards them
@@ -87,22 +83,22 @@ func startPublicServer(addr string) {
 func handlePublicRequest(conn net.Conn) {
 	defer conn.Close()
 
-	// Assume we only have one client for simplicity
 	clientsLock.Lock()
-	var clientConn net.Conn
+	var client_conn net.Conn
+
 	for _, c := range clients {
-		clientConn = c
+		client_conn = c
 		break
 	}
 	clientsLock.Unlock()
 
-	if clientConn == nil {
+	if client_conn == nil {
 		fmt.Println("No tunnel clients available")
 		conn.Write([]byte("No tunnel clients available"))
 		return
 	}
 
-	// Forward request to the tunnel client
-	go io.Copy(clientConn, conn)
-	io.Copy(conn, clientConn)
+	go io.Copy(client_conn, conn)
+
+	io.Copy(conn, client_conn)
 }

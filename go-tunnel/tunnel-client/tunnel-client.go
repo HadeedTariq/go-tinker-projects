@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 )
 
 func main() {
@@ -13,38 +14,36 @@ func main() {
 		fmt.Println("Error connecting to tunnel server:", err)
 		return
 	}
+
 	defer serverConn.Close()
+	client_id := "my-tunnel-server"
 
-	// Send a unique ID to register with the Tunnel Server
-	clientID := "my-local-tunnel"
-	serverConn.Write([]byte(clientID))
-
-	// Listen on a local port
-	listener, err := net.Listen("tcp", "localhost:3000")
+	serverConn.Write([]byte(client_id))
+	localPort := os.Args[1]
+	serverAddr := os.Args[2]
+	listener, err := net.Listen("tcp", ":"+localPort)
 	if err != nil {
 		fmt.Println("Error starting local listener:", err)
 		return
 	}
 	defer listener.Close()
 
-	fmt.Println("Tunnel Client listening on localhost:3000")
+	fmt.Println("Tunnel client listening on", localPort, "forwarding to", serverAddr)
 
 	for {
-		localConn, err := listener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println("Error accepting local request:", err)
 			continue
 		}
 
-		// Forward request to the tunnel server
-		go handleConnection(localConn, serverConn)
+		go handleConnection(conn, serverConn)
 	}
 }
 
 func handleConnection(localConn, serverConn net.Conn) {
 	defer localConn.Close()
 
-	// Forward data in both directions
 	go io.Copy(serverConn, localConn)
 	io.Copy(localConn, serverConn)
 }
